@@ -1,11 +1,11 @@
 <div align="center">
 
-# Tyler Komander
+<img src="assets/hero.webp?v=96c46388" width="800" height="320" alt="Tyler Komander - IT and AI. Local-first tools, run on hardware I control.">
+
+</div>
 
 IT and AI. I build local-first tools — blue-team triage, honeypots, self-hosted feeds — and keep
 them on hardware I control.
-
-</div>
 
 Cyber security student. It shows in what I build: two of the three things below defend something,
 and the third runs entirely on a machine I own.
