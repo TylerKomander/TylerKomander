@@ -28,11 +28,6 @@ and the third runs entirely on a machine I own.
 | [`ssh-honeypot`](https://github.com/TylerKomander/ssh-honeypot) | A low-interaction SSH honeypot that completes the handshake and records every username, password and key an attacker tries, one JSON event per line, then fails the auth every time. One Python file, runs unprivileged in Docker. |
 | [`PersonalNewsSource`](https://github.com/TylerKomander/PersonalNewsSource) | A self-hosted news dashboard: searches the live web, scopes it across 15 editable topics, and folds RSS, Reddit and GitHub sources into one card feed. Your config stays in your browser — no account, no server-side copy. |
 
-## Studying
-
-B.S. Cyber Security / IT, expected 2028. A.S. Cyber Security already done. Certifications are on
-LinkedIn.
-
 ## Connect
 
 [LinkedIn](https://www.linkedin.com/in/tyler-komander/) · [tykomander5@gmail.com](mailto:tykomander5@gmail.com)
