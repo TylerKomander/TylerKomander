@@ -4,11 +4,7 @@
 
 </div>
 
-IT and AI. I build local-first tools — blue-team triage, honeypots, self-hosted feeds — and keep
-them on hardware I control.
-
-Cyber security student. It shows in what I build: two of the three things below defend something,
-and the third runs entirely on a machine I own.
+IT - AI - Cybersecurity Student - Fun & Professional Projects
 
 ## Stack
 
