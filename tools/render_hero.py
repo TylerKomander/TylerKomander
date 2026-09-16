@@ -1,7 +1,8 @@
-"""Render the profile hero: a looping crimson alert-console sequence, as animated WebP.
+"""Render the profile hero: the name typing itself out once, as animated WebP.
 
-Deterministic for a fixed (Pillow, libwebp, FreeType) triple. Pinned to pillow==12.3.0.
-Run with no arguments to rewrite assets/hero.webp and print the markdown line to paste.
+Transparent background so it sits on the page as text rather than a plate, crimson so it
+holds up in both GitHub themes, and it plays exactly once. Deterministic for a fixed
+(Pillow, libwebp, FreeType) triple. Pinned to pillow==12.3.0.
 """
 
 from __future__ import annotations
@@ -15,43 +16,33 @@ from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFont, features
+from PIL import Image, ImageDraw, ImageFont, features
 
 COPY = {
-    "alert": "[ALERT] severity=high vector=inbound conf=0.97",
-    "recon": ("resolving identity ...", "correlating 6 sources ..."),
-    "verdict": "verdict: human. cleared.",
     "name": "Tyler Komander",
-    "statement": "IT and AI. Local-first tools, run on hardware I control.",
-    "alt": "Tyler Komander - IT and AI. Local-first tools, run on hardware I control.",
+    "alt": "Tyler Komander",
 }
 
-THEME = {
-    "bg": (0x0A, 0x0A, 0x0B),
-    "accent": (0xC4, 0x1E, 0x3A),
-    "text": (0xD7, 0xD7, 0xDB),
-    "dim": (0x6E, 0x6E, 0x73),
-    "name": (0xF2, 0xF2, 0xF4),
-    "statement": (0x8A, 0x8A, 0x90),
-}
+ACCENT = (0xC4, 0x1E, 0x3A, 0xFF)
+TRANSPARENT = (0, 0, 0, 0)
 
-CANVAS = (1600, 640)
-DISPLAY = (800, 320)
-PAD_X = 72
-ROW_Y = (104, 179, 254, 329, 404)
-NAME_Y = 530
-STATEMENT_Y = 596
-MAX_LINE_CHARS = 62
+CANVAS = (900, 150)
+DISPLAY = (450, 75)
+BASELINE = 104
+NAME_FACE = ("consolab.ttf", 88)
+CURSOR_W = 40
+CURSOR_H = 70
+CURSOR_RISE = 62
+LOOP_COUNT = 1
+
+MAX_NAME_CHARS = 16
 MIN_FRAME_MS = 30
-DURATION_BAND_MS = (8000, 12000)
-SIZE_WARN = 400 * 1024
-SIZE_FAIL = 900 * 1024
+DURATION_BAND_MS = (2000, 8000)
+SIZE_WARN = 120 * 1024
+SIZE_FAIL = 400 * 1024
 
 FONT_DIR = Path(os.environ.get("WINDIR", "C:\\Windows")) / "Fonts"
-ALLOWED = set(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    " .,:;=()[]<>/-_?!"
-)
+ALLOWED = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -.")
 
 
 @lru_cache(maxsize=None)
@@ -62,83 +53,24 @@ def font(name: str, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(path), size, layout_engine=ImageFont.Layout.BASIC)
 
 
-BODY = ("consola.ttf", 52)
-BOLD = ("consolab.ttf", 52)
-NAME_FONT = ("consolab.ttf", 96)
-STATEMENT_FONT = ("consola.ttf", 44)
-
-CELL_W = round(font(*BODY).getlength("M"))
-NAME_CELL_W = round(font(*NAME_FONT).getlength("M"))
-CURSOR_W = CELL_W - 5
-CURSOR_H = 58
-CURSOR_RISE = 44
-
-Row = tuple
-EMPTY_ROW = ("", "text", BODY)
+CELL_W = round(font(*NAME_FACE).getlength("M"))
+PAD_X = (CANVAS[0] - CELL_W * len(COPY["name"])) // 2
 
 
 @dataclass(frozen=True)
 class State:
-    rows: tuple
-    name: str
-    statement: str
-    cursor: tuple | None
-
-
-def initial_state() -> State:
-    return State(rows=tuple(EMPTY_ROW for _ in ROW_Y), name="", statement="", cursor=(0, 0))
-
-
-def set_row(state: State, index: int, row) -> State:
-    rows = list(state.rows)
-    rows[index] = row
-    return replace(state, rows=tuple(rows))
+    typed: str
+    cursor: bool
 
 
 @dataclass(frozen=True)
 class Blink:
-    row: int
-    cycles: tuple = (500, 400, 300)
+    cycles: tuple
 
     def expand(self, state):
-        for i, ms in enumerate(self.cycles):
-            cursor = (self.row, 0) if i % 2 == 0 else None
-            state = replace(state, cursor=cursor)
+        for index, ms in enumerate(self.cycles):
+            state = replace(state, cursor=index % 2 == 0)
             yield state, ms
-
-
-@dataclass(frozen=True)
-class Type:
-    row: int
-    key: str
-    colour: str
-    face: tuple
-    ms_per_char: int
-    chars_per_frame: int = 1
-
-    def expand(self, state):
-        text = COPY[self.key]
-        step = self.chars_per_frame
-        for end in range(step, len(text) + step, step):
-            prefix = text[:end]
-            state = set_row(state, self.row, (prefix, self.colour, self.face))
-            state = replace(state, cursor=(self.row, len(prefix)))
-            yield state, self.ms_per_char * step
-
-
-@dataclass(frozen=True)
-class Reveal:
-    row: int
-    index: int
-    colour: str
-    face: tuple
-    ms: int
-
-    def expand(self, state):
-        text = COPY["recon"][self.index]
-        state = set_row(state, self.row, (text, self.colour, self.face))
-        state = replace(state, cursor=(self.row, len(text)))
-        yield state, self.ms
 
 
 @dataclass(frozen=True)
@@ -147,61 +79,52 @@ class TypeName:
 
     def expand(self, state):
         for end in range(1, len(COPY["name"]) + 1):
-            state = replace(state, name=COPY["name"][:end])
+            state = replace(state, typed=COPY["name"][:end], cursor=True)
             yield state, self.ms_per_char
 
 
 @dataclass(frozen=True)
-class RevealStatement:
+class Hold:
     ms: int
+    cursor: bool
 
     def expand(self, state):
-        state = replace(state, statement=COPY["statement"], cursor=None)
+        state = replace(state, cursor=self.cursor)
         yield state, self.ms
-
-
-@dataclass(frozen=True)
-class Pause:
-    ms: int
-
-    def expand(self, state):
-        yield state, self.ms
-
-
-@dataclass(frozen=True)
-class ClearUp:
-    step_ms: int
-
-    def expand(self, state):
-        state = replace(state, statement="")
-        yield state, self.step_ms
-        state = replace(state, name="")
-        yield state, self.step_ms
-        for index in reversed(range(len(ROW_Y))):
-            if state.rows[index][0]:
-                state = set_row(state, index, EMPTY_ROW)
-                yield state, self.step_ms
 
 
 BEATS = (
-    Blink(row=0),
-    Type(row=0, key="alert", colour="text", face=BODY, ms_per_char=32),
-    Pause(260),
-    Reveal(row=1, index=0, colour="dim", face=BODY, ms=420),
-    Reveal(row=2, index=1, colour="dim", face=BODY, ms=380),
-    Pause(300),
-    Type(row=4, key="verdict", colour="accent", face=BOLD, ms_per_char=42),
-    Pause(500),
-    TypeName(ms_per_char=55),
-    RevealStatement(ms=400),
-    Pause(2800),
-    ClearUp(step_ms=70),
-    Pause(300),
+    Blink(cycles=(420, 360)),
+    TypeName(ms_per_char=70),
+    Hold(ms=1200, cursor=True),
+    Hold(ms=1600, cursor=False),
 )
 
 
+@lru_cache(maxsize=None)
+def render(state: State) -> Image.Image:
+    image = Image.new("RGBA", CANVAS, TRANSPARENT)
+    draw = ImageDraw.Draw(image)
+    glyph_font = font(*NAME_FACE)
+    for column, character in enumerate(state.typed):
+        draw.text(
+            (PAD_X + column * CELL_W, BASELINE),
+            character,
+            font=glyph_font,
+            fill=ACCENT,
+            anchor="ls",
+        )
+    if state.cursor:
+        x = PAD_X + len(state.typed) * CELL_W
+        draw.rectangle(
+            [x, BASELINE - CURSOR_RISE, x + CURSOR_W, BASELINE + CURSOR_H - CURSOR_RISE],
+            fill=ACCENT,
+        )
+    return image
+
+
 def timeline():
-    state = initial_state()
+    state = State(typed="", cursor=True)
     frames = []
     for beat in BEATS:
         for state, ms in beat.expand(state):
@@ -212,9 +135,9 @@ def timeline():
             merged[-1] = (state, merged[-1][1] + ms)
         else:
             merged.append((state, ms))
-    # A second pass on the rendered pixels, not just the state: typing a space changes the
-    # state but not the image, and libwebp folds pixel-identical frames into their
-    # predecessor, which would leave the written ANMF count short of the duration list.
+    # A second pass on the rendered pixels, not just the state: libwebp folds
+    # pixel-identical frames into their predecessor, which would leave the written ANMF
+    # count short of the duration list.
     collapsed = []
     for state, ms in merged:
         digest = hashlib.sha1(render(state).tobytes()).digest()
@@ -225,86 +148,25 @@ def timeline():
     return [(state, ms) for state, ms, _ in collapsed]
 
 
-@lru_cache(maxsize=1)
-def base_image() -> Image.Image:
-    return Image.new("RGB", CANVAS, THEME["bg"])
-
-
-@lru_cache(maxsize=None)
-def render(state: State) -> Image.Image:
-    image = base_image().copy()
-    draw = ImageDraw.Draw(image)
-    for index, (text, colour, face) in enumerate(state.rows):
-        baseline = ROW_Y[index]
-        glyph_font = font(*face)
-        for column, character in enumerate(text):
-            draw.text(
-                (PAD_X + column * CELL_W, baseline),
-                character,
-                font=glyph_font,
-                fill=THEME[colour],
-                anchor="ls",
-            )
-    if state.name:
-        glyph_font = font(*NAME_FONT)
-        for column, character in enumerate(state.name):
-            draw.text(
-                (PAD_X + column * NAME_CELL_W, NAME_Y),
-                character,
-                font=glyph_font,
-                fill=THEME["name"],
-                anchor="ls",
-            )
-    if state.statement:
-        draw.text(
-            (PAD_X, STATEMENT_Y),
-            state.statement,
-            font=font(*STATEMENT_FONT),
-            fill=THEME["statement"],
-            anchor="ls",
-        )
-    if state.cursor is not None:
-        row, column = state.cursor
-        x = PAD_X + column * CELL_W
-        y = ROW_Y[row]
-        draw.rectangle(
-            [x, y - CURSOR_RISE, x + CURSOR_W, y + CURSOR_H - CURSOR_RISE],
-            fill=THEME["accent"],
-        )
-    return image
-
-
-def cursor_box(state: State):
-    row, column = state.cursor
-    x = PAD_X + column * CELL_W
-    y = ROW_Y[row]
-    return (x, y - CURSOR_RISE, x + CURSOR_W + 1, y + CURSOR_H - CURSOR_RISE + 1)
-
-
 def preflight(states) -> None:
-    for key, value in COPY.items():
-        if key == "alt":
-            continue
-        lines = value if isinstance(value, tuple) else (value,)
-        for line in lines:
-            if len(line) > MAX_LINE_CHARS:
-                sys.exit("copy line too long (%d > %d): %s" % (len(line), MAX_LINE_CHARS, key))
-            stray = set(line) - ALLOWED
-            if stray:
-                sys.exit("copy has glyphs outside the allowed set %s: %s" % (sorted(stray), key))
+    name = COPY["name"]
+    if len(name) > MAX_NAME_CHARS:
+        sys.exit("name too long (%d > %d)" % (len(name), MAX_NAME_CHARS))
+    stray = set(name) - ALLOWED
+    if stray:
+        sys.exit("name has glyphs outside the allowed set: %s" % sorted(stray))
+    right_edge = PAD_X + CELL_W * len(name) + CURSOR_W
+    if PAD_X < 0 or right_edge > CANVAS[0]:
+        sys.exit("name and cursor do not fit the canvas: right edge %d" % right_edge)
     durations = [ms for _, ms in states]
     if min(durations) < MIN_FRAME_MS:
         sys.exit("frame duration below the %dms floor: %d" % (MIN_FRAME_MS, min(durations)))
     total = sum(durations)
     if not DURATION_BAND_MS[0] <= total <= DURATION_BAND_MS[1]:
         sys.exit("total duration %dms outside %s" % (total, DURATION_BAND_MS))
-    first, last = render(states[0][0]), render(states[-1][0])
-    diff = ImageChops.difference(first, last).getbbox()
-    if diff is not None:
-        box = cursor_box(states[0][0])
-        inside = box[0] <= diff[0] and box[1] <= diff[1] and diff[2] <= box[2] and diff[3] <= box[3]
-        if not inside:
-            sys.exit("loop seam not clean: difference %s escapes cursor box %s" % (diff, box))
+    final = states[-1][0]
+    if final.typed != name or final.cursor:
+        sys.exit("the last frame must rest on the full name with no cursor")
 
 
 def walk_riff(path: Path):
@@ -320,13 +182,18 @@ def walk_riff(path: Path):
         size = struct.unpack("<I", data[offset + 4:offset + 8])[0]
         chunks.setdefault(fourcc, []).append(data[offset + 8:offset + 8 + size])
         offset += 8 + size + (size & 1)
-    if "VP8X" not in chunks or not chunks["VP8X"][0][0] & 0x02:
+    if "VP8X" not in chunks:
+        sys.exit("no VP8X chunk")
+    flags = chunks["VP8X"][0][0]
+    if not flags & 0x02:
         sys.exit("VP8X animation flag not set - decoders would treat this as a still image")
+    if not flags & 0x10:
+        sys.exit("VP8X alpha flag not set - the background would render as a black plate")
     if "ANIM" not in chunks:
         sys.exit("no ANIM chunk")
     loop_count = struct.unpack("<H", chunks["ANIM"][0][4:6])[0]
-    if loop_count != 0:
-        sys.exit("ANIM loop count is %d, expected 0 (infinite)" % loop_count)
+    if loop_count != LOOP_COUNT:
+        sys.exit("ANIM loop count is %d, expected %d" % (loop_count, LOOP_COUNT))
     for unwanted in ("EXIF", "XMP ", "ICCP"):
         if unwanted in chunks:
             sys.exit("unexpected metadata chunk in a public asset: " + unwanted)
@@ -344,21 +211,22 @@ def verify(path: Path, durations):
             sys.exit("canvas is %s, expected %s" % (image.size, CANVAS))
         if image.n_frames != len(durations):
             sys.exit("n_frames %d != expected %d" % (image.n_frames, len(durations)))
-        if image.info.get("loop") != 0:
-            sys.exit("loop flag is %s, expected 0" % image.info.get("loop"))
+        if image.info.get("loop") != LOOP_COUNT:
+            sys.exit("loop flag is %s, expected %d" % (image.info.get("loop"), LOOP_COUNT))
         decoded = []
-        accent_seen = False
         for index in range(image.n_frames):
             image.seek(index)
             image.load()
             decoded.append(image.info["duration"])
-            if not accent_seen:
-                band = image.convert("RGB").crop((0, ROW_Y[4] - 52, CANVAS[0], ROW_Y[4] + 16))
-                accent_seen = any(c == THEME["accent"] for _, c in band.getcolors(1 << 16))
         if decoded != durations:
             sys.exit("decoded per-frame durations do not match what was written")
-        if not accent_seen:
-            sys.exit("no exact #C41E3A pixel in the verdict row - lossless did not survive")
+        image.seek(image.n_frames - 1)
+        image.load()
+        colours = {colour for _, colour in image.convert("RGBA").getcolors(1 << 16)}
+        if ACCENT not in colours:
+            sys.exit("no exact #C41E3A pixel in the last frame - lossless did not survive")
+        if TRANSPARENT not in colours:
+            sys.exit("last frame has no fully transparent pixel - the background is not clear")
     return riff
 
 
@@ -398,12 +266,12 @@ def main() -> None:
         save_all=True,
         append_images=frames[1:],
         duration=durations,
-        loop=0,
+        loop=LOOP_COUNT,
         lossless=True,
         quality=100,
         method=2 if args.fast else 6,
         minimize_size=not args.fast,
-        background=THEME["bg"] + (255,),
+        background=TRANSPARENT,
     )
 
     verify(out, durations)

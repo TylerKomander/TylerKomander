@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/hero.webp?v=96c46388" width="800" height="320" alt="Tyler Komander - IT and AI. Local-first tools, run on hardware I control.">
+<img src="assets/hero.webp?v=4d659784" width="450" height="75" alt="Tyler Komander">
 
 </div>
 
