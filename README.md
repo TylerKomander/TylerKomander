@@ -10,7 +10,7 @@ IT · AI · Cybersecurity Student · Fun &amp; Professional Projects
 
 **Build** — Python · TypeScript · JavaScript · React · Vite · Node.js · PowerShell · GDScript
 
-**Security** — Suricata · nmap · tshark · Kerberos · Paramiko · ufw / iptables / fail2ban · honeypots
+**Security** — Suricata · tshark · Kerberos · Paramiko · ufw / iptables / fail2ban
 
 **Infra** — Docker · Linux · WSL · Windows · AWS · Git · Vercel
 
