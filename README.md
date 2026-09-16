@@ -2,7 +2,7 @@
 
 <img src="assets/hero.webp?v=4d659784" width="450" height="75" alt="Tyler Komander">
 
-IT - AI - Cybersecurity Student - Fun &amp; Professional Projects
+IT · AI · Cybersecurity Student · Fun &amp; Professional Projects
 
 </div>
 
