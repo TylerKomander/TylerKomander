@@ -12,7 +12,7 @@ IT · AI · Cybersecurity Student · Fun &amp; Professional Projects
 
 **Security** — Suricata · tshark · Kerberos · Paramiko · ufw / iptables / fail2ban
 
-**Infra** — Docker · Linux · WSL · Windows · AWS · Git · Vercel
+**Infra** — Docker · Linux · WSL · Windows · AWS · Git · Vercel · Proxmox
 
 **Tools** — Claude · GPT · VS Code · Obsidian
 
